@@ -1,6 +1,5 @@
 import sympy as sp
 import numpy as np
-import pandas as pd 
 from scipy.integrate import quad, dblquad, cumulative_trapezoid
 import matplotlib.pyplot as plt
 
@@ -21,8 +20,8 @@ L = 10      # Longitud del cilindro
 #######################################
 ### Parámetros de ajuste para j #########
 #######################################
-beta = 1
-alfa = 1
+beta = 1e-9
+alfa = 1e-9
 delta = R/a
 
 #######################################
@@ -42,8 +41,8 @@ chi = (delta**2 + 1) / h_sq
 #######################################
 ### Corrientes ###########################
 #######################################
-j_phi_phi = 0.12000389484301359 * sp.cos(phi)
-j_phi_r = -alfa
+j_phi_phi = 1
+j_phi_r = -alfa*r
 j_y_r = beta * r
 
 #######################################
@@ -82,7 +81,13 @@ flujo_poloidal = L * sp.integrate(Bphi_old * delta * r, (r, 0, R))
 #######################################
 ### Corriente axial poloidal ###########
 #######################################
-j_y_phi = - (flujo_axial / flujo_poloidal)
+
+Bphi_old_cc = - (mu_0 * delta / r**2) * sp.integrate(r * j_y_r, (r, 0, r))
+# Convertir la expresión simbólica en una función numérica:
+Bphi_old_cc_func = sp.lambdify(r, Bphi_old_cc, "numpy")
+integrand_cc = lambda r: Bphi_old_cc_func(r) * r
+flujo_cc, error = quad(integrand_cc, 0, R)
+j_y_phi = - (flujo_cc / flujo_poloidal)
 
 #######################################
 ### Cálculo de jy ######################
@@ -109,6 +114,8 @@ Phi, R_ = np.meshgrid(phi_vals, r_vals)
 X = delta * R_ * np.cos(Phi)
 Z = R_ * np.sin(Phi)
 
+factor=R_*((delta**2 * np.sin(Phi)**2 + np.cos(Phi)**2))**0.5
+
 Bphi_vals = Bphi_func(R_, Phi)
 By_vals = By_func(R_, Phi)
 jr_vals = jr_func(R_, Phi)
@@ -126,7 +133,7 @@ def plot_contour(ax, X, Z, values, title):
 
 # --- FIGURA 1: Campos Magnéticos ---
 fig1, axes1 = plt.subplots(1, 2, figsize=(18, 6))
-plot_contour(axes1[0], X, Z, Bphi_vals, "$B^\\phi$ (Magnetic Field)")
+plot_contour(axes1[0], X, Z, Bphi_vals*factor, "$B^\\phi$ (Magnetic Field)")
 plot_contour(axes1[1], X, Z, By_vals, "$B^y$ (Magnetic Field)")
 fig1.savefig("campos_magneticos.svg", format="svg")
 plt.show()
@@ -134,7 +141,7 @@ plt.show()
 # --- FIGURA 2: Corrientes ---------------
 fig2, axes2 = plt.subplots(1, 3, figsize=(18, 6))
 plot_contour(axes2[0], X, Z, jr_vals, "$j^r$ (Current Field)")
-plot_contour(axes2[1], X, Z, jphi_vals, "$j^y$ (Current Field)")
+plot_contour(axes2[1], X, Z, jphi_vals*factor, "$j^y$ (Current Field)")
 plot_contour(axes2[2], X, Z, jy_vals, "$j^\\phi$ (Current Field)")
 fig2.savefig("corrientes.svg", format="svg")
 plt.show()
@@ -156,7 +163,7 @@ f_phi_vals = f_phi_func(R_, Phi)
 fig3, axes3 = plt.subplots(1, 3, figsize=(18, 6))
 plot_contour(axes3[0], X, Z, f_r_vals, "$f^r$ (Lorentz Force)")
 plot_contour(axes3[1], X, Z, f_y_vals, "$f^y$ (Lorentz Force)")
-plot_contour(axes3[2], X, Z, f_phi_vals, "$f^\\phi$ (Lorentz Force)")
+plot_contour(axes3[2], X, Z, f_phi_vals*factor, "$f^\\phi$ (Lorentz Force)")
 fig3.savefig("fuerzas_lorentz.svg", format="svg")
 plt.show()
 
@@ -239,7 +246,7 @@ print("Helicidad Magnética: ", H_numeric)
 # --- FIGURA 5: Líneas de campo en 3D y proyecciones 2D ---
 def compute_line_xyz(r_fixed, By_func, Bphi_func, delta, n_points=300):
     phi_array = np.linspace(0, 2*np.pi, n_points)
-    integrand = r_fixed * abs(By_func(r_fixed, phi_array) / Bphi_func(r_fixed, phi_array))
+    integrand = r_fixed * abs(By_func(r_fixed, phi_array) / Bphi_func(r_fixed, phi_array))/(12.5)
     z_array = cumulative_trapezoid(integrand, phi_array, initial=0.0)
     x_array = delta * r_fixed * np.cos(phi_array)
     y_array = r_fixed * np.sin(phi_array)
