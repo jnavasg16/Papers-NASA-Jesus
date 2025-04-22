@@ -28,7 +28,7 @@ P0 = 1e-8                   # Base pressure (Pa)
 # DEFINITION OF THE MESH IN CYLINDRICAL COORDINATES
 # ===============================================================
 phi_vals = np.linspace(0, 2*np.pi, 200)
-r_vals = np.linspace(1e-1, a, 200)
+r_vals = np.linspace(0, a, 200)
 Phi, R_ = np.meshgrid(phi_vals, r_vals)
 
 # Transformation to "cartesian" coordinates (X, Z) for visualization
@@ -58,6 +58,10 @@ pressure_vals = np.zeros_like(R_)
 for i in range(R_.shape[0]):
     for j in range(R_.shape[1]):
         pressure_vals[i, j] = pressure(R_[i, j], Phi[i, j])
+# Mask singularity near the axis (r close to zero)
+threshold = r_vals[1]  # exclude first non-zero radius
+mask_origin = (R_ < threshold)
+pressure_vals = np.ma.masked_where(mask_origin, pressure_vals)
 
 # ===============================================================
 # CALCULATION OF THE TEMPERATURE DISTRIBUTION
@@ -65,7 +69,9 @@ for i in range(R_.shape[0]):
 # ===============================================================
 # |B|^2 = (B^φ)^2 + (B^y)^2
 B_mod_sq = Bphi_vals**2 + By_vals**2
-temperature_vals = (pressure_vals - B_mod_sq / mu0) / (n * k_B)
+temperature_vals = (pressure_vals) / (2 * n * k_B)
+# Mask temperature singularity at the axis
+temperature_vals = np.ma.masked_where(mask_origin, temperature_vals)
 
 # ===============================================================
 # JOINT PLOT OF PRESSURE AND TEMPERATURE
@@ -74,6 +80,8 @@ fig, axs = plt.subplots(1, 2, figsize=(16, 6))
 
 # Pressure subplot
 cp0 = axs[0].contourf(X, Z, pressure_vals, cmap='inferno', levels=50)
+cs0 = axs[0].contour(X, Z, pressure_vals, levels=10, colors='k', linewidths=0.5)
+axs[0].clabel(cs0, inline=True, fontsize=8)
 axs[0].set_title("Pressure Distribution")
 axs[0].set_xlabel("$x = \\delta r \\cos(\\phi)$")
 axs[0].set_ylabel("$z = r \\sin(\\phi)$")
@@ -82,6 +90,8 @@ fig.colorbar(cp0, ax=axs[0], label="Pressure (Pa)")
 
 # Temperature subplot
 cp1 = axs[1].contourf(X, Z, temperature_vals, cmap='plasma', levels=50)
+cs1 = axs[1].contour(X, Z, temperature_vals, levels=10, colors='k', linewidths=0.5)
+axs[1].clabel(cs1, inline=True, fontsize=8)
 axs[1].set_title("Temperature Distribution")
 axs[1].set_xlabel("$x = \\delta r \\cos(\\phi)$")
 axs[1].set_ylabel("$z = r \\sin(\\phi)$")
@@ -99,12 +109,21 @@ v_r   = np.zeros_like(Bphi_vals)    # Radial component v_r
 v_phi = alpha * Bphi_vals             # Azimuthal component v_φ
 v_y   = alpha * By_vals               # Axial component v_y
 
+# Mask velocity singularity near the axis
+threshold = r_vals[1]
+mask_origin = (R_ < threshold)
+v_r   = np.ma.masked_where(mask_origin, v_r)
+v_phi = np.ma.masked_where(mask_origin, v_phi)
+v_y   = np.ma.masked_where(mask_origin, v_y)
+
 # ===============================================================
 # JOINT PLOT OF THE VELOCITY COMPONENTS
 # ===============================================================
 fig, axs = plt.subplots(1, 3, figsize=(18, 6))
 
 cp_vr = axs[0].contourf(X, Z, v_r, cmap='viridis', levels=50)
+cs_vr = axs[0].contour(X, Z, v_r, levels=10, colors='k', linewidths=0.5)
+axs[0].clabel(cs_vr, inline=True, fontsize=8)
 axs[0].set_title("$v_r$ (Radial Component)")
 axs[0].set_xlabel("$x = \\delta r \\cos(\\phi)$")
 axs[0].set_ylabel("$z = r \\sin(\\phi)$")
@@ -112,6 +131,8 @@ axs[0].axis("equal")
 fig.colorbar(cp_vr, ax=axs[0], label="$v_r$")
 
 cp_vphi = axs[1].contourf(X, Z, v_phi, cmap='viridis', levels=50)
+cs_vphi = axs[1].contour(X, Z, v_phi, levels=10, colors='k', linewidths=0.5)
+axs[1].clabel(cs_vphi, inline=True, fontsize=8)
 axs[1].set_title("$v_\\phi$ (Azimuthal Component)")
 axs[1].set_xlabel("$x = \\delta r \\cos(\\phi)$")
 axs[1].set_ylabel("$z = r \\sin(\\phi)$")
@@ -119,6 +140,8 @@ axs[1].axis("equal")
 fig.colorbar(cp_vphi, ax=axs[1], label="$v_\\phi$")
 
 cp_vy = axs[2].contourf(X, Z, v_y, cmap='viridis', levels=50)
+cs_vy = axs[2].contour(X, Z, v_y, levels=10, colors='k', linewidths=0.5)
+axs[2].clabel(cs_vy, inline=True, fontsize=8)
 axs[2].set_title("$v_y$ (Axial Component)")
 axs[2].set_xlabel("$x = \\delta r \\cos(\\phi)$")
 axs[2].set_ylabel("$z = r \\sin(\\phi)$")
@@ -245,6 +268,8 @@ ax_vx_vz.set_title("Velocidad en el plano Vx vs Vz a lo largo de la trayectoria"
 ax_vx_vz.set_xlabel("$V_x$ (m/s)")
 ax_vx_vz.set_ylabel("$V_z$ (m/s)")
 ax_vx_vz.grid(True)
+ax_vx_vz.set_xscale('log')
+ax_vx_vz.set_yscale('log')
 ax_vx_vz.legend(loc="best")
 ax_vx_vz.axis('equal')  # Para mantener proporciones reales en el plano Vx-Vz
 
