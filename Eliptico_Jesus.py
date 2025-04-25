@@ -3,12 +3,18 @@ import numpy as np
 from scipy.integrate import quad, dblquad, cumulative_trapezoid
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm  # Nuevo import para colormaps “inferno”
+import matplotlib.ticker as ticker
+
+import pandas as pd
+
+# --- Configuración de Modo ---
+modo_rapido = True
 
 plt.rcParams.update({'font.size': 12})
 plt.rcParams.update({
-    "text.usetex": True,
+    "text.usetex": not modo_rapido,
     "font.family": "serif",
-    "font.serif": ["Computer Modern Roman"],
+    "font.serif": ["DejaVu Serif"],
 })
 
 #######################################
@@ -20,17 +26,18 @@ r, phi, u = sp.symbols('r phi u', real=True)
 ### Constantes físicas del sistema ####
 #######################################
 mu_0 = 4 * sp.pi * 1e-7  
-By0 = 1e-6  # Campo magnético axial en el origen
-R = 1.5    # Semieje menor
-a = 2.0     # Semieje mayor
-L = 10      # Longitud del cilindro
-
+R = 0.7e10    # Semieje menor
+a = 1e10    # Semieje mayor
+L = 10     # Longitud del cilindro
+                                                                 #OK
 #######################################
 ### Parámetros de ajuste para j #########
 #######################################
-beta = 1e-9
-alfa = 1e-9
+
+alfa = 1e-32
+beta = -alfa*a*10
 delta = R/a
+By0 = mu_0*delta*alfa*a**3/3 # Campo magnético axial en el origen
 
 #######################################
 ### Definición de la métrica ############
@@ -49,7 +56,18 @@ chi = (delta**2 + 1) / h_sq
 #######################################
 ### Corrientes ###########################
 #######################################
-j_phi_phi = sp.cos(phi)
+j_phi_phi = 0.12615662610100803 \
+    + (-0.24000778968602718) * sp.cos(1 * phi) \
+    + (0.20657661898691135) * sp.cos(2 * phi) \
+    + (-0.16088203263124973) * sp.cos(3 * phi) \
+    + (0.11337165224497914) * sp.cos(4 * phi) \
+    + (-0.07228895706727245) * sp.cos(5 * phi) \
+    + (0.041707100072565964) * sp.cos(6 * phi) \
+    + (-0.0217730154538321) * sp.cos(7 * phi) \
+    + (0.010284844252703521) * sp.cos(8 * phi) \
+    + (-0.004395896006372525) * sp.cos(9 * phi) \
+    + (0.0017000733205040617) * sp.cos(10 * phi)
+
 j_phi_r = -alfa*r
 j_y_r = beta*r
 
@@ -117,9 +135,13 @@ jr_func = sp.lambdify((r, phi), jr, "numpy")
 jphi_func = sp.lambdify((r, phi), jphi, "numpy")
 jy_func = sp.lambdify((r, phi), jy, "numpy")
 
-phi_vals = np.linspace(0, 2 * np.pi, 200)
 epsilon = 1e-3
-r_vals = np.linspace(epsilon, a, 200)
+if modo_rapido:
+    phi_vals = np.linspace(0, 2 * np.pi, 100)
+    r_vals = np.linspace(epsilon, a, 100)
+else:
+    phi_vals = np.linspace(0, 2 * np.pi, 200)
+    r_vals = np.linspace(epsilon, a, 200)
 Phi, R_ = np.meshgrid(phi_vals, r_vals)
 X = delta * R_ * np.cos(Phi)
 Z = R_ * np.sin(Phi)
@@ -137,16 +159,25 @@ jphi_vals = jphi_func(R_, Phi)
 jy_vals = jy_func(R_, Phi)
 
 def plot_contour(ax, X, Z, values, title):
-    # Colormap “inferno” (fuego), rejilla desactivada
-    c = ax.contourf(X, Z, values, cmap="inferno", levels=100)
+    # Colormap “plasma” (más suave), rejilla desactivada
+    levels_f = 30 if modo_rapido else 50
+    levels_c = 5 if modo_rapido else 7
+    c = ax.contourf(X, Z, values, cmap="plasma", levels=levels_f)
     fig_tmp = ax.get_figure()
-    fig_tmp.colorbar(c, ax=ax)
+    cbar = fig_tmp.colorbar(c, ax=ax)
+    cbar.ax.yaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
+    cbar.ax.yaxis.offsetText.set_fontsize(10)
     # Añadir curvas de nivel (líneas de contorno)
-    lines = ax.contour(X, Z, values, levels=10, colors='k', linewidths=0.5)
-    ax.clabel(lines, inline=True, fontsize=8)
-    ax.set_title(title)
-    ax.set_xlabel(r"$x = \delta r \cos\phi$")
-    ax.set_ylabel(r"$z = r \sin\phi$")
+    lines = ax.contour(X, Z, values, levels=levels_c, colors='k', linewidths=1)
+    has_contours = any(len(level) > 0 for level in lines.allsegs)
+    if has_contours:
+        try:
+            ax.clabel(lines, inline=True, fontsize=8, fmt="%.1e", inline_spacing=5)
+        except IndexError:
+            print(f"⚠️  No se pudieron etiquetar las curvas en: {title}")
+    ax.set_title(title, fontsize=14)
+    ax.set_xlabel(r"$x = \delta r \cos\phi$", fontsize=12)
+    ax.set_ylabel(r"$z = r \sin\phi$", fontsize=12)
     ax.set_aspect('equal')
     
 # --- FIGURA 1: Campos Magnéticos ---
@@ -160,8 +191,8 @@ plt.show()
 fig2, axes2 = plt.subplots(1, 3, figsize=(18, 6))
 fig2.tight_layout()
 plot_contour(axes2[0], X, Z, jr_vals, "$j^r$ (Current Field)")
-plot_contour(axes2[1], X, Z, jphi_vals*factor, "$j^y$ (Current Field)")
-plot_contour(axes2[2], X, Z, jy_vals, "$j^\\phi$ (Current Field)")
+plot_contour(axes2[1], X, Z, jy_vals, "$j^y$ (Current Field)")
+plot_contour(axes2[2], X, Z, jphi_vals*factor, "$j^\\phi$ (Current Field)")
 plt.show()
 
 # --- FIGURA 3: Fuerzas de Lorentz -------
@@ -223,7 +254,7 @@ if np.ndim(miss_raw) == 0:
     miss_values = np.full_like(R_, miss_raw)
 else:
     miss_values = miss_raw
-plot_contour(axes4[1], X, Z, miss_values, "$sin(\\omega)$")
+plot_contour(axes4[1], X, Z, miss_raw, "$sin(\\omega)$")
 
 magE = (g_yy*By*By + g_phiphi*Bphi*Bphi) / (2*mu_0)
 magE = sp.lambdify((r, phi), magE, "numpy")
@@ -288,24 +319,34 @@ print("Helicidad Magnética: ", H_numeric)
 
 
 # --- FIGURA 5: Líneas de campo en 3D y proyecciones 2D ---
-def compute_line_xyz(r_fixed, By_func, Bphi_func, delta, n_points=300):
-    phi_array = np.linspace(0, 2*np.pi, n_points)
-    integrand = r_fixed * abs(By_func(r_fixed, phi_array) / Bphi_func(r_fixed, phi_array))/(12.5e9)
+def compute_line_xyz(r_fixed, By_func, Bphi_func, delta, L, n_points=300):
+    # Estimate z-growth over one full turn
+    phi_single = np.linspace(0, 2*np.pi, n_points)
+    integrand_single = r_fixed * np.abs(By_func(r_fixed, phi_single) / Bphi_func(r_fixed, phi_single))
+    z_single = cumulative_trapezoid(integrand_single, phi_single, initial=0.0)
+    z_end = z_single[-1] if z_single.size > 0 else 0.0
+    # Determine number of turns to reach height L
+    num_turns = (L / z_end) if (z_end > 0) else 1.0
+    total_points = max(int(n_points * num_turns), n_points)
+    phi_array = np.linspace(0, 2 * np.pi * num_turns, total_points)
+    integrand = r_fixed * np.abs(By_func(r_fixed, phi_array) / Bphi_func(r_fixed, phi_array)) / 1
     z_array = cumulative_trapezoid(integrand, phi_array, initial=0.0)
+    # Cap z at L
+    z_array = np.clip(z_array, 0, L)
     x_array = delta * r_fixed * np.cos(phi_array)
     y_array = r_fixed * np.sin(phi_array)
     return x_array, y_array, z_array
 
-def draw_elliptical_cylinder(ax, R, L, delta, n_phi=30, n_z=30, alpha=0.15):
+def draw_elliptical_cylinder(ax, R, L, delta, n_phi=30, n_z=30, alpha=0.02):
     phi_cyl = np.linspace(0, 2*np.pi, n_phi)
     z_cyl   = np.linspace(0, L, n_z)
     Phi_cyl, Z_cyl = np.meshgrid(phi_cyl, z_cyl)
     X_cyl = delta * R * np.cos(Phi_cyl)
     Y_cyl = R * np.sin(Phi_cyl)
-    # Cilindro en tono fuego suave
+    # Cilindro en gris, muy transparente
     ax.plot_wireframe(
         X_cyl, Y_cyl, Z_cyl,
-        color=cm.inferno(0.1),  # Valor entre 0–1, ajusta para más rojo/amarillo
+        color="grey",
         alpha=alpha
     )
 
@@ -354,19 +395,30 @@ ax_yz.set_xlabel("z")
 ax_yz.set_ylabel("y")
 
 r_values = [R/4, R/2, R]
-# Obtener un colormap “inferno” con tantos tonos como radios
-colormap = cm.get_cmap('inferno', len(r_values))
+# Asignar colores fijos cíclicamente para las líneas
+line_colors = ["orange", "red", "yellow"]
 for idx, r_fixed in enumerate(r_values):
-    color = colormap(idx)
-    x_arr, y_arr, z_arr = compute_line_xyz(r_fixed, By_func, Bphi_func, delta)
+    color = line_colors[idx % len(line_colors)]
+    x_arr, y_arr, z_arr = compute_line_xyz(r_fixed, By_func, Bphi_func, delta, L)
+    # Export up to 500 points of the curve to CSV
+    n_pts = len(x_arr)
+    if n_pts > 500:
+        idxs = np.linspace(0, n_pts - 1, 500, dtype=int)
+        x_out = x_arr[idxs]
+        y_out = y_arr[idxs]
+        z_out = z_arr[idxs]
+    else:
+        x_out, y_out, z_out = x_arr, y_arr, z_arr
+    df = pd.DataFrame({'x': x_out, 'y': y_out, 'z': z_out})
+    df.to_csv(f'curve_r_{r_fixed:.2f}.csv', index=False)
     ax3d_front.plot(x_arr, y_arr, z_arr, label=f"r={r_fixed}", color=color)
     ax3d_side.plot(x_arr, y_arr, z_arr, color=color)
     ax_xy.plot(x_arr, y_arr, color=color)
     ax_xz.plot(x_arr, z_arr, color=color)
     ax_yz.plot(y_arr, z_arr, color=color)
 
-draw_elliptical_cylinder(ax3d_front, R, L, delta, alpha=0.2)
-draw_elliptical_cylinder(ax3d_side, R, L, delta, alpha=0.2)
+draw_elliptical_cylinder(ax3d_front, R, L, delta, alpha=0.02)
+draw_elliptical_cylinder(ax3d_side, R, L, delta, alpha=0.02)
 ax3d_front.view_init(elev=20, azim=-60)
 ax3d_side.view_init(elev=20, azim=30)
 set_axes_equal_3d(ax3d_front)
@@ -377,3 +429,63 @@ ax_yz.set_aspect('equal', adjustable='datalim')
 ax3d_front.legend()
 plt.tight_layout()
 plt.show()
+
+# --- Generar Reporte Completo de Magnitudes ---
+from scipy.integrate import dblquad
+
+
+mag_energy_total = dblquad(lambda phi, r: magE(r, phi) * delta * r, 0, R, lambda r: 0, lambda r: 2*np.pi)[0]
+
+report_data = {
+    "Parametro": [
+        "Flujo Axial Numérico",
+        "Corriente Axial Poloidal j_y_phi",
+        "Helicidad Magnética",
+        "Energía Magnética Total",
+        "Beta",
+        "Alfa",
+        "Delta",
+        "By0",
+        "Semieje menor R",
+        "Semieje mayor a",
+        "Longitud L"
+    ],
+    "Valor": [
+        flujo_axial,
+        j_y_phi,
+        H_numeric,
+        mag_energy_total,
+        beta,
+        alfa,
+        delta,
+        By0,
+        R,
+        a,
+        L
+    ]
+}
+
+# Crear DataFrame y mostrar
+df_report = pd.DataFrame(report_data)
+print("\n--- Reporte Completo de Magnitudes ---")
+print(df_report)
+
+# Exportar a CSV
+df_report.to_csv("reporte_completo_magnitudes.csv", index=False)
+print("✅ Reporte guardado en 'reporte_completo_magnitudes.csv'")
+print("✅ Expresiones analíticas guardadas en 'expresiones_analiticas.tex'")
+
+# --- Exportar Expresiones Analíticas Simplificadas a LaTeX ---
+expresiones = {
+    r"\textbf{B}^\phi(r, \phi)": sp.simplify(Bphi),
+    r"\textbf{B}^y(r, \phi)": sp.simplify(By),
+    r"\textbf{j}^r(r, \phi)": sp.simplify(jr),
+    r"\textbf{j}^\phi(r, \phi)": sp.simplify(jphi),
+    r"\textbf{j}^y(r, \phi)": sp.simplify(jy)
+}
+
+with open("expresiones_analiticas.tex", "w") as f:
+    f.write(r"\section*{Expresiones Analíticas del Modelo}" + "\n\n")
+    f.write(r"% Expresiones principales del modelo: Campos magnéticos y corrientes" + "\n\n")
+    for nombre, expr in expresiones.items():
+        f.write(r"$" + nombre + r" = " + sp.latex(expr) + r"$" + "\n\n")
