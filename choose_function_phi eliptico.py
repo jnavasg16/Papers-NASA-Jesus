@@ -39,7 +39,7 @@ def fourier_series(func, T, n_terms, x_vals):
 # Parámetros
 sigma = 5
 T = 2 * np.pi  # Periodo de la función
-n_terms = 7  # Grado de la serie de Fourier
+n_terms = 15  # Grado de la serie de Fourier
 x_vals = np.linspace(- T, 2 * T, 1000)  # Múltiples períodos para visualizar mejor
 func = lambda phi: np.exp(-sigma * (phi - np.pi)**2)  # Nueva función con el cambio de variable
 

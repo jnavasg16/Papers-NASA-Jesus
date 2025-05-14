@@ -1,12 +1,12 @@
 Parametro,Valor
 Flujo Axial Numérico,789568352087.1466
-Corriente Axial Poloidal j_y_phi,34906585.0398865*(1.0*sin(phi)**2 + cos(phi)**2)*(1.0*sin(phi)**2 + 1.0*cos(phi)**2 + 2.0)/(pi*(-333333333.333333*sin(phi)**2 - 333333333.333333*cos(phi)**2))
-Helicidad Magnética,-6.421469116029558e+23
-Energía Magnética Total,1718042247.5970356
-Beta,-1.0000000000000001e-21
+Corriente Axial Poloidal j_y_phi,34906585.0398865*(1.0*sin(phi)**2 + cos(phi)**2)*(1.0*sin(phi)**2 + 1.0*cos(phi)**2 + 2.0)/(pi*(33333333.3333333*sin(phi)**2 + 33333333.3333333*cos(phi)**2))
+Helicidad Magnética,0
+Energía Magnética Total,1718042247.5970294
+Beta,1e-22
 Alfa,1e-32
 Delta,1.0
 By0,1.33333333333333e-9*pi
 Semieje menor R,10000000000.0
 Semieje mayor a,10000000000.0
-Longitud L,10
+Longitud L,100000000000.0

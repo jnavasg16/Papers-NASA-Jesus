@@ -9,6 +9,7 @@ import pandas as pd
 
 # --- Configuración de Modo ---
 modo_rapido = True
+computar_helicidad = False  # Cambia a True si deseas calcular la helicidad
 
 plt.rcParams.update({'font.size': 12})
 plt.rcParams.update({
@@ -26,16 +27,18 @@ r, phi, u = sp.symbols('r phi u', real=True)
 ### Constantes físicas del sistema ####
 #######################################
 mu_0 = 4 * sp.pi * 1e-7  
+# Numeric constant for mu_0
+mu0_num = 4 * np.pi * 1e-7
 R = 0.7e10    # Semieje menor
 a = 1e10    # Semieje mayor
-L = 10     # Longitud del cilindro
+L = 10e10     # Longitud del cilindro
                                                                  #OK
 #######################################
 ### Parámetros de ajuste para j #########
 #######################################
 
 alfa = 1e-32
-beta = -alfa*a*10
+beta = 1e-22
 delta = R/a
 By0 = mu_0*delta*alfa*a**3/3 # Campo magnético axial en el origen
 
@@ -56,17 +59,21 @@ chi = (delta**2 + 1) / h_sq
 #######################################
 ### Corrientes ###########################
 #######################################
-j_phi_phi = 0.12615662610100803 \
-    + (-0.24000778968602718) * sp.cos(1 * phi) \
-    + (0.20657661898691135) * sp.cos(2 * phi) \
-    + (-0.16088203263124973) * sp.cos(3 * phi) \
-    + (0.11337165224497914) * sp.cos(4 * phi) \
-    + (-0.07228895706727245) * sp.cos(5 * phi) \
-    + (0.041707100072565964) * sp.cos(6 * phi) \
-    + (-0.0217730154538321) * sp.cos(7 * phi) \
-    + (0.010284844252703521) * sp.cos(8 * phi) \
-    + (-0.004395896006372525) * sp.cos(9 * phi) \
-    + (0.0017000733205040617) * sp.cos(10 * phi)
+j_phi_phi = (
+    0.12615662610100803
+    - 0.24000778968602718 * sp.cos(1 * phi)
+    + 0.20657661898691135 * sp.cos(2 * phi)
+    - 0.16088203263124973 * sp.cos(3 * phi)
+    + 0.11337165224497914 * sp.cos(4 * phi)
+    - 0.07228895706727245 * sp.cos(5 * phi)
+    + 0.041707100072565964 * sp.cos(6 * phi)
+    - 0.0217730154538321 * sp.cos(7 * phi)
+    + 0.010284844252703521 * sp.cos(8 * phi)
+    - 0.004395896006372525 * sp.cos(9 * phi)
+    + 0.0017000733205040617 * sp.cos(10 * phi)
+    - 0.0005949198311010654 * sp.cos(11 * phi)
+    + 0.0001883734933593818 * sp.cos(12 * phi)
+)
 
 j_phi_r = -alfa*r
 j_y_r = beta*r
@@ -103,7 +110,7 @@ integrand = lambda phi, r: By_func(r, phi) * delta * r
 flujo_axial, error = dblquad(integrand, 0, R, lambda phi: 0, lambda phi: 2 * np.pi)
 print("Flujo Axial Numérico:", flujo_axial)
 
-flujo_poloidal = L * sp.integrate(Bphi_old * delta * r, (r, 0, R))
+flujo_poloidal = sp.integrate(Bphi_old * delta * r, (r, 0, R))
 
 #######################################
 ### Corriente axial poloidal ###########
@@ -114,7 +121,7 @@ Bphi_old_cc = - (mu_0 * delta / r**2) * sp.integrate(r * j_y_r, (r, 0, r))
 Bphi_old_cc_func = sp.lambdify(r, Bphi_old_cc, "numpy")
 integrand_cc = lambda r: Bphi_old_cc_func(r) * r
 flujo_cc, error = quad(integrand_cc, 0, R)
-j_y_phi = - (flujo_cc / flujo_poloidal)
+j_y_phi = (flujo_cc / flujo_poloidal)
 
 #######################################
 ### Cálculo de jy ######################
@@ -137,11 +144,11 @@ jy_func = sp.lambdify((r, phi), jy, "numpy")
 
 epsilon = 1e-3
 if modo_rapido:
-    phi_vals = np.linspace(0, 2 * np.pi, 100)
-    r_vals = np.linspace(epsilon, a, 100)
+    phi_vals = np.linspace(0, 2 * np.pi, 50)
+    r_vals   = np.linspace(epsilon, a, 50)
 else:
-    phi_vals = np.linspace(0, 2 * np.pi, 200)
-    r_vals = np.linspace(epsilon, a, 200)
+    phi_vals = np.linspace(0, 2 * np.pi, 100)
+    r_vals   = np.linspace(epsilon, a, 100)
 Phi, R_ = np.meshgrid(phi_vals, r_vals)
 X = delta * R_ * np.cos(Phi)
 Z = R_ * np.sin(Phi)
@@ -176,16 +183,15 @@ def plot_contour(ax, X, Z, values, title):
         except IndexError:
             print(f"⚠️  No se pudieron etiquetar las curvas en: {title}")
     ax.set_title(title, fontsize=14)
-    ax.set_xlabel(r"$x = \delta r \cos\phi$", fontsize=12)
-    ax.set_ylabel(r"$z = r \sin\phi$", fontsize=12)
     ax.set_aspect('equal')
     
 # --- FIGURA 1: Campos Magnéticos ---
 fig1, axes1 = plt.subplots(1, 2, figsize=(18, 6))
 fig1.tight_layout()
-plot_contour(axes1[0], X, Z, Bphi_vals*factor, "$B^\\phi$ (Magnetic Field)")
-plot_contour(axes1[1], X, Z, By_vals, "$B^y$ (Magnetic Field)")
+plot_contour(axes1[0], X, Z, By_vals, "$B^y$ (Magnetic Field)")
+plot_contour(axes1[1], X, Z, Bphi_vals*factor, "$B^\\varphi$ (Magnetic Field)")
 plt.show()
+fig1.savefig("fig1.svg", format="svg")
 
 # --- FIGURA 2: Corrientes ---------------
 fig2, axes2 = plt.subplots(1, 3, figsize=(18, 6))
@@ -194,43 +200,79 @@ plot_contour(axes2[0], X, Z, jr_vals, "$j^r$ (Current Field)")
 plot_contour(axes2[1], X, Z, jy_vals, "$j^y$ (Current Field)")
 plot_contour(axes2[2], X, Z, jphi_vals*factor, "$j^\\phi$ (Current Field)")
 plt.show()
+fig2.savefig("fig2.svg", format="svg")
 
-# --- FIGURA 3: Fuerzas de Lorentz -------
-fr = (g_yy * g_phiphi) / (delta * r) * (jy * Bphi - jphi * By)
-fy = (1 / (delta * r)) * ((g_phiphi * jphi + g_rphi * jr) * g_rphi * Bphi - (g_rphi * jphi + g_rr * jr) * g_phiphi * Bphi)
-fphi = (g_rr * g_yy) / (delta * r) * jr * By
-fr = sp.simplify(fr)
-fy = sp.simplify(fy)
-fphi = sp.simplify(fphi)
-f_r_func = sp.lambdify((r, phi), fr, "numpy")
-f_y_func = sp.lambdify((r, phi), fy, "numpy")
-f_phi_func = sp.lambdify((r, phi), fphi, "numpy")
-f_r_vals_raw = f_r_func(R_, Phi)
-if np.ndim(f_r_vals_raw) == 0:
-    f_r_vals = np.full_like(R_, f_r_vals_raw)
+# --- FIGURA 3: Fuerzas de Lorentz (optimizada) ---
+# Redefinir malla con resolución reducida si modo_rapido
+if modo_rapido:
+    n_phi3, n_r3 = 50, 50
 else:
-    f_r_vals = f_r_vals_raw
+    n_phi3, n_r3 = len(phi_vals), len(r_vals)
+phi_vals3 = np.linspace(0, 2 * np.pi, n_phi3)
+r_vals3 = np.linspace(epsilon, a, n_r3)
+Phi3, R3 = np.meshgrid(phi_vals3, r_vals3)
+X3 = delta * R3 * np.cos(Phi3)
+Z3 = R3 * np.sin(Phi3)
 
-f_y_vals_raw = f_y_func(R_, Phi)
-if np.ndim(f_y_vals_raw) == 0:
-    f_y_vals = np.full_like(R_, f_y_vals_raw)
-else:
-    f_y_vals = f_y_vals_raw
+# Compute metric factors on the R3, Phi3 mesh
+g_rr_vals3     = g_rr_func(Phi3)
+g_phiphi_vals3 = g_phiphi_func(R3, Phi3)
+g_rphi_vals3   = g_rphi_func(R3, Phi3)
 
-f_phi_vals_raw = f_phi_func(R_, Phi)
-if np.ndim(f_phi_vals_raw) == 0:
-    f_phi_vals = np.full_like(R_, f_phi_vals_raw)
-else:
-    f_phi_vals = f_phi_vals_raw
+# Extract current and field arrays on the R3, Phi3 mesh
+jr_vals3   = jr_func(R3, Phi3)
+jphi_vals3 = jphi_func(R3, Phi3)
+jy_vals3   = jy_func(R3, Phi3)
+Bphi_vals3 = Bphi_func(R3, Phi3)
+By_vals3   = By_func(R3, Phi3)
+
+# Lorentz force components using metric
+f_r_vals = (g_yy * g_phiphi_vals3) / (delta * R3) * (jy_vals3 * Bphi_vals3 - jphi_vals3 * By_vals3)
+f_y_vals = (1 / (delta * R3)) * (
+    (g_phiphi_vals3 * jphi_vals3 + g_rphi_vals3 * jr_vals3) * g_rphi_vals3 * Bphi_vals3
+    - (g_rphi_vals3   * jphi_vals3 + g_rr_vals3   * jr_vals3) * g_phiphi_vals3 * Bphi_vals3
+)
+f_phi_vals = (g_rr_vals3 * g_yy) / (delta * R3) * jr_vals3 * By_vals3
+
+factor3 = R3 * ((delta**2 * np.sin(Phi3)**2 + np.cos(Phi3)**2))**0.5
 
 fig3, axes3 = plt.subplots(1, 3, figsize=(18, 6))
 fig3.tight_layout()
-plot_contour(axes3[0], X, Z, f_r_vals, "$f^r$ (Lorentz Force)")
-plot_contour(axes3[1], X, Z, f_y_vals, "$f^y$ (Lorentz Force)")
-plot_contour(axes3[2], X, Z, f_phi_vals*factor, "$f^\\phi$ (Lorentz Force)")
+plot_contour(axes3[0], X3, Z3, f_r_vals, "$f^r$ (Lorentz Force)")
+plot_contour(axes3[1], X3, Z3, f_y_vals, "$f^y$ (Lorentz Force)")
+plot_contour(axes3[2], X3, Z3, f_phi_vals * factor3, "$f^\\phi$ (Lorentz Force)")
 plt.show()
+fig3.savefig("fig3.svg", format="svg")
+
 
 # --- FIGURA 4: Corriente Perpendicular y Desalineamiento/Energía -----------
+# Ensure j_r, j_y, j_phi, B_r, B_y, B_phi are defined just before this block
+j_r = jr_vals
+j_y = jy_vals
+j_phi = jphi_vals
+B_r = np.zeros_like(j_r)
+B_y = By_vals
+B_phi = Bphi_vals
+
+# Load metric factors on the same mesh
+g_rr_vals     = g_rr_func(Phi)
+g_phiphi_vals = g_phiphi_func(R_, Phi)
+g_yy_val      = 1
+
+# Magnitudes with metric
+mag_jxB = np.sqrt(g_rr_vals * f_r_vals**2
+                + g_yy_val * f_y_vals**2
+                + g_phiphi_vals * f_phi_vals**2)
+mag_j   = np.sqrt(g_rr_vals * j_r**2
+                + g_yy_val * j_y**2
+                + g_phiphi_vals * j_phi**2)
+mag_B   = np.sqrt(g_rr_vals * B_r**2
+                + g_yy_val * B_y**2
+                + g_phiphi_vals * B_phi**2)
+
+# Misalignment factor
+sin_omega = mag_jxB / (mag_j * mag_B)
+
 jperp = (g_yy * g_phiphi / (delta * r * sp.sqrt(g_yy*By*By + g_phiphi*Bphi*Bphi))) * (jy * Bphi - jphi * By)
 jperp = sp.simplify(jperp)
 j_perp_func = sp.lambdify((r, phi), jperp, "numpy")
@@ -243,28 +285,14 @@ else:
 fig4, axes4 = plt.subplots(1, 3, figsize=(18, 6))
 fig4.tight_layout()
 plot_contour(axes4[0], X, Z, j_perp_values, "$j_{\\perp}$ (Perpendicular Current)")
+plot_contour(axes4[1], X, Z, sin_omega, "$sin(\\omega)$")
 
-modj = sp.sqrt(g_rr*jr*jr + 2*g_rphi*jr*jphi + g_yy*jy*jy + g_phiphi*jphi*jphi)
-modB = sp.sqrt(g_yy*By*By + g_phiphi*Bphi*Bphi)
-modLorentz = sp.sqrt(g_rr*fr*fr + 2*g_rphi*fr*fphi + g_yy*fy*fy + g_phiphi*fphi*fphi)
-miss = modLorentz / (modj * modB)
-miss = sp.lambdify((r, phi), miss, "numpy")
-miss_raw = miss(R_, Phi)
-if np.ndim(miss_raw) == 0:
-    miss_values = np.full_like(R_, miss_raw)
-else:
-    miss_values = miss_raw
-plot_contour(axes4[1], X, Z, miss_raw, "$sin(\\omega)$")
-
-magE = (g_yy*By*By + g_phiphi*Bphi*Bphi) / (2*mu_0)
-magE = sp.lambdify((r, phi), magE, "numpy")
-magE_raw = magE(R_, Phi)
-if np.ndim(magE_raw) == 0:
-    magE_vals = np.full_like(R_, magE_raw)
-else:
-    magE_vals = magE_raw
+# Compute magnetic energy density numerically
+gphiphi_vals = g_phiphi_func(R_, Phi)
+magE_vals = (By_vals**2 + gphiphi_vals * Bphi_vals**2) / (2 * mu0_num)
 plot_contour(axes4[2], X, Z, magE_vals, "Magnetic Energy Density")
 plt.show()
+fig4.savefig("fig4.svg", format="svg")
 
 #######################################
 ############## Helicidad ##############
@@ -279,9 +307,12 @@ def D_numeric(r_val, phi_val):
     def inner_integral(rp):
         lower = phi_val - (r_val - rp)
         upper = phi_val + (r_val - rp)
-        result, err = quad(lambda phip: By_func(rp, phip), lower, upper)
-        return result
-    result_outer, err = quad(lambda rp: rp * inner_integral(rp), 0, r_val)
+        if upper > lower:
+            result, err = quad(lambda phip: By_func(rp, phip), lower, upper, limit=200, epsabs=1e-6, epsrel=1e-6)
+            return result
+        else:
+            return 0
+    result_outer, err = quad(lambda rp: rp * inner_integral(rp), 0, r_val, limit=200)
     return (delta / 2) * result_outer
 
 def compute_derivatives_D(r_val, phi_val, h=1e-5):
@@ -310,131 +341,27 @@ def helicity_integrand(r_val, phi_val):
 def integrand_for_dblquad(phi_val, r_val):
     return helicity_integrand(r_val, phi_val)
 
-H_numeric, err = dblquad(integrand_for_dblquad,
-                         0, R,
-                         lambda r_val: 0,
-                         lambda r_val: 2*np.pi)
-print("Helicidad Magnética: ", H_numeric)
-
-
-
-# --- FIGURA 5: Líneas de campo en 3D y proyecciones 2D ---
-def compute_line_xyz(r_fixed, By_func, Bphi_func, delta, L, n_points=300):
-    # Estimate z-growth over one full turn
-    phi_single = np.linspace(0, 2*np.pi, n_points)
-    integrand_single = r_fixed * np.abs(By_func(r_fixed, phi_single) / Bphi_func(r_fixed, phi_single))
-    z_single = cumulative_trapezoid(integrand_single, phi_single, initial=0.0)
-    z_end = z_single[-1] if z_single.size > 0 else 0.0
-    # Determine number of turns to reach height L
-    num_turns = (L / z_end) if (z_end > 0) else 1.0
-    total_points = max(int(n_points * num_turns), n_points)
-    phi_array = np.linspace(0, 2 * np.pi * num_turns, total_points)
-    integrand = r_fixed * np.abs(By_func(r_fixed, phi_array) / Bphi_func(r_fixed, phi_array)) / 1
-    z_array = cumulative_trapezoid(integrand, phi_array, initial=0.0)
-    # Cap z at L
-    z_array = np.clip(z_array, 0, L)
-    x_array = delta * r_fixed * np.cos(phi_array)
-    y_array = r_fixed * np.sin(phi_array)
-    return x_array, y_array, z_array
-
-def draw_elliptical_cylinder(ax, R, L, delta, n_phi=30, n_z=30, alpha=0.02):
-    phi_cyl = np.linspace(0, 2*np.pi, n_phi)
-    z_cyl   = np.linspace(0, L, n_z)
-    Phi_cyl, Z_cyl = np.meshgrid(phi_cyl, z_cyl)
-    X_cyl = delta * R * np.cos(Phi_cyl)
-    Y_cyl = R * np.sin(Phi_cyl)
-    # Cilindro en gris, muy transparente
-    ax.plot_wireframe(
-        X_cyl, Y_cyl, Z_cyl,
-        color="grey",
-        alpha=alpha
-    )
-
-def set_axes_equal_3d(ax):
-    x_limits = ax.get_xlim3d()
-    y_limits = ax.get_ylim3d()
-    z_limits = ax.get_zlim3d()
-    x_range = abs(x_limits[1] - x_limits[0])
-    x_mid   = np.mean(x_limits)
-    y_range = abs(y_limits[1] - y_limits[0])
-    y_mid   = np.mean(y_limits)
-    z_range = abs(z_limits[1] - z_limits[0])
-    z_mid   = np.mean(z_limits)
-    plot_radius = 0.5 * max([x_range, y_range, z_range])
-    ax.set_xlim3d([x_mid - plot_radius, x_mid + plot_radius])
-    ax.set_ylim3d([y_mid - plot_radius, y_mid + plot_radius])
-    ax.set_zlim3d([z_mid - plot_radius, z_mid + plot_radius])
-
-fig5 = plt.figure(figsize=(18, 12))
-gs0 = fig5.add_gridspec(nrows=2, ncols=1, height_ratios=[2, 1], hspace=0.3)
-top_gs = gs0[0].subgridspec(nrows=1, ncols=2, wspace=0.3)
-bottom_gs = gs0[1].subgridspec(nrows=1, ncols=3, wspace=0.3)
-
-ax3d_front = fig5.add_subplot(top_gs[0], projection='3d')
-ax3d_front.set_title("Front view")
-ax3d_front.set_xlabel("x")
-ax3d_front.set_ylabel("z")
-ax3d_front.set_zlabel("y")
-ax3d_side  = fig5.add_subplot(top_gs[1], projection='3d')
-ax3d_side.set_title("Lateral view")
-ax3d_side.set_xlabel("x")
-ax3d_side.set_ylabel("z")
-ax3d_side.set_zlabel("y")
-
-ax_xy = fig5.add_subplot(bottom_gs[0])
-ax_xy.set_title("XZ projection")
-ax_xy.set_xlabel("x")
-ax_xy.set_ylabel("z")
-ax_xz = fig5.add_subplot(bottom_gs[1])
-ax_xz.set_title("XY projection")
-ax_xz.set_xlabel("x")
-ax_xz.set_ylabel("y")
-ax_yz = fig5.add_subplot(bottom_gs[2])
-ax_yz.set_title("ZY projection")
-ax_yz.set_xlabel("z")
-ax_yz.set_ylabel("y")
-
-r_values = [R/4, R/2, R]
-# Asignar colores fijos cíclicamente para las líneas
-line_colors = ["orange", "red", "yellow"]
-for idx, r_fixed in enumerate(r_values):
-    color = line_colors[idx % len(line_colors)]
-    x_arr, y_arr, z_arr = compute_line_xyz(r_fixed, By_func, Bphi_func, delta, L)
-    # Export up to 500 points of the curve to CSV
-    n_pts = len(x_arr)
-    if n_pts > 500:
-        idxs = np.linspace(0, n_pts - 1, 500, dtype=int)
-        x_out = x_arr[idxs]
-        y_out = y_arr[idxs]
-        z_out = z_arr[idxs]
-    else:
-        x_out, y_out, z_out = x_arr, y_arr, z_arr
-    df = pd.DataFrame({'x': x_out, 'y': y_out, 'z': z_out})
-    df.to_csv(f'curve_r_{r_fixed:.2f}.csv', index=False)
-    ax3d_front.plot(x_arr, y_arr, z_arr, label=f"r={r_fixed}", color=color)
-    ax3d_side.plot(x_arr, y_arr, z_arr, color=color)
-    ax_xy.plot(x_arr, y_arr, color=color)
-    ax_xz.plot(x_arr, z_arr, color=color)
-    ax_yz.plot(y_arr, z_arr, color=color)
-
-draw_elliptical_cylinder(ax3d_front, R, L, delta, alpha=0.02)
-draw_elliptical_cylinder(ax3d_side, R, L, delta, alpha=0.02)
-ax3d_front.view_init(elev=20, azim=-60)
-ax3d_side.view_init(elev=20, azim=30)
-set_axes_equal_3d(ax3d_front)
-set_axes_equal_3d(ax3d_side)
-ax_xy.set_aspect('equal', adjustable='datalim')
-ax_xz.set_aspect('equal', adjustable='datalim')
-ax_yz.set_aspect('equal', adjustable='datalim')
-ax3d_front.legend()
-plt.tight_layout()
-plt.show()
+if computar_helicidad:
+    H_numeric, err = dblquad(integrand_for_dblquad,
+                             0, R,
+                             lambda r_val: 0,
+                             lambda r_val: 2*np.pi)
+    print("Helicidad Magnética: ", H_numeric)
+else:
+    H_numeric = 0
+    print("⚡ Helicity computation skipped (computar_helicidad = False)")
 
 # --- Generar Reporte Completo de Magnitudes ---
+
 from scipy.integrate import dblquad
 
-
-mag_energy_total = dblquad(lambda phi, r: magE(r, phi) * delta * r, 0, R, lambda r: 0, lambda r: 2*np.pi)[0]
+mag_energy_total = dblquad(
+    lambda phi, r: ((By_func(r, phi)**2 + g_phiphi_func(r, phi) * Bphi_func(r, phi)**2)
+                    / (2 * mu0_num)) * delta * r,
+    0, R,
+    lambda r: 0,
+    lambda r: 2 * np.pi
+)[0]
 
 report_data = {
     "Parametro": [
@@ -489,3 +416,225 @@ with open("expresiones_analiticas.tex", "w") as f:
     f.write(r"% Expresiones principales del modelo: Campos magnéticos y corrientes" + "\n\n")
     for nombre, expr in expresiones.items():
         f.write(r"$" + nombre + r" = " + sp.latex(expr) + r"$" + "\n\n")
+
+
+# --- FIGURA CURVA PARAMÉTRICA OPTIMIZADA ---
+print("🎨 Graficando conjunto de curvas paramétricas (vectorizado)...")
+
+vueltas = 5
+# Resolución reducida para prototipado
+n_phi = 500
+n_radios = 10
+phi_vals_curve = np.linspace(0, 2 * np.pi * vueltas, n_phi)
+radios = np.linspace(0.1 * R, 0.9 * R, n_radios)
+
+# Vectorizar cálculo
+Phi2d, R2d = np.meshgrid(phi_vals_curve, radios)
+By2d = By_func(R2d, Phi2d)
+Bphi2d = Bphi_func(R2d, Phi2d)
+# Evitar divisiones por cero
+Bphi2d = np.where(np.abs(Bphi2d) < 1e-12, 1e-12, Bphi2d)
+integrand2d = (By2d / Bphi2d) * R2d
+# Integral acumulada por filas (eje φ)
+Y2d = cumulative_trapezoid(integrand2d, phi_vals_curve, axis=1, initial=0)
+X2d = delta * R2d * np.cos(Phi2d)
+Z2d = R2d * np.sin(Phi2d)
+
+# Change line colors and scale all curves to full cylinder length
+max_y = np.max(Y2d[:, -1])
+
+# Graficar cada curva, ya con datos precomputados
+fig_curve = plt.figure(figsize=(12, 8))
+ax_curve = fig_curve.add_subplot(111, projection='3d')
+for i in range(n_radios):
+    color = cm.viridis(i / (n_radios - 1))
+    y_scaled = Y2d[i] * (max_y / Y2d[i, -1])
+    ax_curve.plot(X2d[i], y_scaled, Z2d[i], lw=2.2, color=color)
+
+
+# Añadir cilindro transparente
+theta_cyl = np.linspace(0, 2 * np.pi, 100)
+y_cyl = np.linspace(np.min(Y2d), np.max(Y2d), 100)
+theta_grid, y_grid = np.meshgrid(theta_cyl, y_cyl)
+r_cyl = 0.95 * R
+x_cyl = delta * r_cyl * np.cos(theta_grid)
+z_cyl = r_cyl * np.sin(theta_grid)
+ax_curve.plot_surface(x_cyl, y_grid, z_cyl, color='lightgray', alpha=0.1, linewidth=0, antialiased=False)
+
+    # Opcional: proyecciones
+    # ax_curve.plot(X2d[i], Y2d[i], zs=0, zdir='z', linestyle='dotted', color='gray', alpha=0.3)
+    # ax_curve.plot(X2d[i], np.zeros_like(Y2d[i]), Z2d[i], zdir='y', linestyle='dotted', color='gray', alpha=0.3)
+    # ax_curve.plot(np.zeros_like(X2d[i]), Y2d[i], Z2d[i], zdir='x', linestyle='dotted', color='gray', alpha=0.3)
+
+ax_curve.set_xlabel(r"$x$")
+ax_curve.set_ylabel(r"$y = \int_0^\varphi \frac{B^y}{B^\varphi} r d\varphi$")
+ax_curve.set_zlabel(r"$z")
+ax_curve.set_title("Magnetic Field Lines (Parametric Curves)")
+ax_curve.view_init(elev=25, azim=-60)  # Vista rotada
+ax_curve.grid(False)
+ax_curve.set_box_aspect([2, 4, 2])  # Aspecto personalizado
+ax_curve.set_xticks([])
+ax_curve.set_yticks([])
+ax_curve.set_zticks([])
+ax_curve.set_xlabel("")
+ax_curve.set_ylabel("")
+ax_curve.set_zlabel("")
+# Remove the surrounding 3D axes box
+ax_curve.set_axis_off()
+plt.tight_layout()
+plt.show()
+fig_curve.savefig("fig_curve.svg", format="svg")
+print("✅ Conjunto de curvas paramétricas graficado.")
+
+
+# --- FIGURA ÁNGULO DE PITCH ---
+print("📐 Graficando ángulo de pitch para distintos radios...")
+
+fig_pitch, ax_pitch = plt.subplots(figsize=(10, 6))
+radios_pitch = np.linspace(0.1 * R, 0.9 * R, 10)
+
+for i, r_val in enumerate(radios_pitch):
+    r_array = np.full_like(phi_vals_curve, r_val)
+    By_vals = By_func(r_array, phi_vals_curve)
+    Bphi_vals = Bphi_func(r_array, phi_vals_curve)
+    Bphi_vals = np.where(np.abs(Bphi_vals) < 1e-12, 1e-12, Bphi_vals)
+    alpha_vals = np.arctan(By_vals / Bphi_vals)  # Ángulo de pitch
+    color = cm.plasma(i / (len(radios_pitch) - 1))
+    ax_pitch.plot(phi_vals_curve, np.degrees(alpha_vals), label=f"r = {round(r_val/1e10,2)}e10", color=color)
+
+ax_pitch.set_title("Pitch Angle vs Azimuthal Angle")
+ax_pitch.set_xlabel(r"$\varphi$ (rad)")
+ax_pitch.set_ylabel(r"$\alpha(r,\varphi)$ (degrees)")
+ax_pitch.grid(True)
+ax_pitch.legend()
+plt.tight_layout()
+plt.show()
+fig_pitch.savefig("fig_pitch.svg", format="svg")
+print("✅ Ángulo de pitch graficado.")
+
+
+# --- Synthetic trajectory generation for constant z ---
+def synthetic_trajectory(z0, n_points=200):
+    # Numeric parameters from symbolic constants
+    delta_val = float(delta)
+    a_val = float(a)
+    R_val = float(R)
+    # Compute x range within ellipse cross-section at height z0
+    x_max = R_val * np.sqrt(max(0, 1 - (z0 / a_val)**2))
+    x_vals = np.linspace(-x_max, x_max, n_points)
+    # Convert (x, z0) into (r, phi) for evaluation
+    r_vals = np.sqrt((x_vals / delta_val)**2 + z0**2)
+    phi_vals = np.arctan2(z0, x_vals / delta_val)
+    # Evaluate magnetic field components
+    Bphi_vals = Bphi_func(r_vals, phi_vals)
+    By_vals = By_func(r_vals, phi_vals)
+    # Compute physical magnitude of Bphi
+    factor_vals = r_vals * np.sqrt(delta_val**2 * np.sin(phi_vals)**2 + np.cos(phi_vals)**2)
+    Bphi_phys = Bphi_vals * factor_vals
+    # Total magnetic field magnitude
+    Bmag = np.sqrt(Bphi_phys**2 + By_vals**2)
+    return x_vals, Bmag
+
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import matplotlib.gridspec as gridspec
+
+    # Generate 10 synthetic trajectories at evenly spaced z positions within the ellipse
+    z0_vals = np.linspace(-0.9 * float(a), 0.9 * float(a), 10)
+    trajectories = [synthetic_trajectory(z0) for z0 in z0_vals]
+
+    # --- Top-left: B^φ vs B^y for each trajectory ---
+    fig = plt.figure(figsize=(14, 10))
+    gs = fig.add_gridspec(2, 2, height_ratios=[1, 1], width_ratios=[1, 2],
+                          hspace=0.3, wspace=0.3)
+    ax_bvsb = fig.add_subplot(gs[0, 0])
+    ax1     = fig.add_subplot(gs[0, 1])
+    ax2     = fig.add_subplot(gs[1, :])
+
+    # Plot B^φ vs B^y for each trajectory with unique color
+    for i, (z0, (x_vals, _)) in enumerate(zip(z0_vals, trajectories)):
+        # Recompute radial and angular positions
+        delta_val = float(delta)
+        r_vals = np.sqrt((x_vals / delta_val)**2 + z0**2)
+        phi_vals = np.arctan2(z0, x_vals / delta_val)
+        # Field components
+        Bphi_vals = Bphi_func(r_vals, phi_vals)
+        By_vals = By_func(r_vals, phi_vals)
+        # Physical Bφ
+        factor_vals = r_vals * np.sqrt(delta_val**2 * np.sin(phi_vals)**2 + np.cos(phi_vals)**2)
+        Bphi_phys = Bphi_vals * factor_vals
+        linestyle = '--' if z0 > 0 else '-'
+        color = cm.plasma(i / (len(z0_vals) - 1))
+        ax_bvsb.plot(Bphi_phys, By_vals, linestyle=linestyle, color=color, label=f"z = {z0:.2e}")
+    ax_bvsb.set_xlabel(r"$B^\varphi$ (T)")
+    ax_bvsb.set_ylabel(r"$B^y$ (T)")
+    ax_bvsb.set_title(r"$B^\varphi$ vs $B^y$ along trajectories")
+    ax_bvsb.legend(fontsize="small", loc="best")
+
+    # --- Top-right: contour of field magnitude in X-Z plane ---
+    # Prepare mesh
+    phi_mesh = np.linspace(0, 2 * np.pi, 100)
+    r_mesh = np.linspace(1e-3, float(a), 100)
+    Phi, R_ = np.meshgrid(phi_mesh, r_mesh)
+    X_mesh = float(delta) * R_ * np.cos(Phi)
+    Z_mesh = R_ * np.sin(Phi)
+    # Compute field magnitude on mesh
+    Bphi_mesh = Bphi_func(R_, Phi)
+    By_mesh = By_func(R_, Phi)
+    factor_mesh = R_ * np.sqrt(float(delta)**2 * np.sin(Phi)**2 + np.cos(Phi)**2)
+    Bmag_mesh = np.sqrt((Bphi_mesh * factor_mesh)**2 + By_mesh**2)
+    cf = ax1.contourf(X_mesh, Z_mesh, Bmag_mesh, cmap="plasma", levels=50)
+    fig.colorbar(cf, ax=ax1)
+    # Overlay synthetic trajectories
+    for z0, (x_vals, _) in zip(z0_vals, trajectories):
+        # Dashed for z0 > 0, solid for z0 <= 0
+        linestyle = '--' if z0 > 0 else '-'
+        ax1.plot(x_vals, np.full_like(x_vals, z0), lw=1.5, linestyle=linestyle)
+    ax1.set_title("Synthetic trajectories on |B| contour")
+    ax1.set_aspect('equal')
+    # Remove distance scale ticks on contour overlay
+    ax1.set_xticks([])
+    ax1.set_yticks([])
+
+    # --- Bottom: |B| along each trajectory ---
+    for z0, (x_vals, Bmag_vals) in zip(z0_vals, trajectories):
+        # Dashed for z0 > 0, solid for z0 <= 0
+        linestyle = '--' if z0 > 0 else '-'
+        ax2.plot(x_vals, Bmag_vals, label=f"z = {z0:.2e}", linestyle=linestyle)
+    ax2.set_xlabel("X position")
+    # Remove distance scale ticks on the X-axis of magnitude plot
+    ax2.set_xticks([])
+    ax2.set_ylabel("|B| (T)")
+    ax2.set_title("Field magnitude along trajectories")
+    ax2.legend(fontsize="small", loc="best")
+
+    plt.tight_layout()
+    plt.show()
+    fig.savefig("fig_synthetic.svg", format="svg")
+
+
+# --- Generar reporte Markdown ---
+with open("reporte_completo.md", "w") as f:
+    f.write("# Reporte de Resultados\n\n")
+    f.write("## Magnitudes Físicas y Valores Geométricos\n\n")
+    for _, row in df_report.iterrows():
+        f.write(f"- **{row['Parametro']}**: {row['Valor']}\n")
+    f.write(f"- **R** (semieje menor): {R}\n")
+    f.write(f"- **a** (semieje mayor): {a}\n")
+    f.write(f"- **L** (longitud del cilindro): {L}\n")
+    f.write(f"- **Δ** (delta): {delta}\n\n")
+    f.write("## Expresiones Analíticas\n\n")
+    for nombre, expr in expresiones.items():
+        # Write each expression with its name and LaTeX value
+        f.write(f"- **{nombre}** = $$ {sp.latex(expr)} $$\n\n")
+    f.write("## Figuras\n\n")
+    f.write("![Campos magnéticos](fig1.svg)\n\n")
+    f.write("![Corrientes](fig2.svg)\n\n")
+    f.write("![Fuerzas de Lorentz](fig3.svg)\n\n")
+    f.write("![Corriente Perp/Energía](fig4.svg)\n\n")
+    f.write("![Curvas Paramétricas](fig_curve.svg)\n\n")
+    f.write("![Ángulo de Pitch](fig_pitch.svg)\n\n")
+    f.write("![Trayectorias Sintéticas](fig_synthetic.svg)\n")
+print("✅ Reporte Markdown guardado en 'reporte_completo.md'")
